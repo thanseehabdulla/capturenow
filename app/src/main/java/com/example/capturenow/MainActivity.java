@@ -16,12 +16,18 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.RectF;
+import android.graphics.drawable.BitmapDrawable;
+import android.location.Location;
+import android.location.LocationManager;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Message;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -46,20 +52,36 @@ public class MainActivity extends AppCompatActivity {
     static final int REQUEST_TAKE_PHOTO = 1;
     Button captureNow;
     Bitmap globalImageBitmap;
-    ImageView showImage;
+    ImageView showImage, showImage2;
     public static final int MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 123;
     public static final int MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 124;
+    public static Bitmap bmp2;
+    AppLocationService appLocationService;
+    public static String resultData;
+    public static String resultData2, resultData3;
+    GPS_Tracker gpsTracker;
+    private static final String[] INITIAL_PERMS={
+            Manifest.permission.ACCESS_FINE_LOCATION
+    };
+    private static final String[] LOCATION_PERMS={
+            Manifest.permission.ACCESS_FINE_LOCATION
+    };
+    private static final int INITIAL_REQUEST=1337;
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         captureNow = (Button) findViewById(R.id.capture);
         showImage = (ImageView) findViewById(R.id.imageView);
+        showImage2 = (ImageView) findViewById(R.id.imageView2);
+        bmp2 = ((BitmapDrawable)showImage2.getDrawable()).getBitmap();
 
         checkPermissionWRITE_EXTERNAL_STORAGE(getApplication());
         checkPermissionREAD_EXTERNAL_STORAGE(getApplication());
         captureNow.setOnClickListener(new View.OnClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.M)
             @Override
             public void onClick(View v) {
                 if (checkPermissionREAD_EXTERNAL_STORAGE(getApplication())) {
@@ -69,31 +91,85 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        if (!canAccessLocation()) {
+            requestPermissions(INITIAL_PERMS, INITIAL_REQUEST);
+        }
+
+        turnOnGps();
+
+//        ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+
+        appLocationService = new AppLocationService(
+                this);
     }
 
+    public void turnOnGps(){
+        new GpsUtils(this).turnGPSOn(new GpsUtils.onGpsListener() {
+            @Override
+            public void gpsStatus(boolean isGPSEnable) {
+                // turn on GPS
+//                isGPS = isGPSEnable;
+            }
+        });
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private boolean canAccessLocation() {
+        return(hasPermission(Manifest.permission.ACCESS_FINE_LOCATION));
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private boolean hasPermission(String perm) {
+        return(PackageManager.PERMISSION_GRANTED==checkSelfPermission(perm));
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
     private void dispatchTakePictureIntent() {
+        turnOnGps();
+
 //        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 //        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
 //            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
 //        }
 
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        // Ensure that there's a camera activity to handle the intent
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            // Create the File where the photo should go
-            File photoFile = null;
-            try {
-                photoFile = createImageFile();
-            } catch (IOException ex) {
-                // Error occurred while creating the File
+        if (!canAccessLocation()) {
+            requestPermissions(INITIAL_PERMS, INITIAL_REQUEST);
+        }else {
+
+            Location gpsLocation = appLocationService
+                    .getLocation(LocationManager.GPS_PROVIDER);
+
+
+            if (gpsLocation != null) {
+                double latitude = gpsLocation.getLatitude();
+                double longitude = gpsLocation.getLongitude();
+                LocationAddress locationAddress = new LocationAddress();
+                resultData = "Latitude: " + gpsLocation.getLatitude();
+                resultData3 = "Longitude: " + gpsLocation.getLongitude();
+                locationAddress.getAddressFromLocation(latitude, longitude,
+                        getApplicationContext(), new GeocoderHandler());
+            } else {
             }
-            // Continue only if the File was successfully created
-            if (photoFile != null) {
-                Uri photoURI = FileProvider.getUriForFile(this,
-                        "com.example.capturenow.fileprovider",
-                        photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+
+            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            // Ensure that there's a camera activity to handle the intent
+            if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+                // Create the File where the photo should go
+                File photoFile = null;
+                try {
+                    photoFile = createImageFile();
+                } catch (IOException ex) {
+                    // Error occurred while creating the File
+                }
+                // Continue only if the File was successfully created
+                if (photoFile != null) {
+                    Uri photoURI = FileProvider.getUriForFile(this,
+                            "com.example.capturenow.fileprovider",
+                            photoFile);
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                    startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+                }
             }
         }
     }
@@ -122,6 +198,24 @@ public class MainActivity extends AppCompatActivity {
         return image;
     }
 
+    private class GeocoderHandler extends Handler {
+        @Override
+        public void handleMessage(Message message) {
+            String locationAddress;
+            switch (message.what) {
+                case 1:
+                    Bundle bundle = message.getData();
+                    locationAddress = bundle.getString("address");
+                    break;
+                default:
+                    locationAddress = null;
+            }
+
+           resultData2 = locationAddress;
+        }
+    }
+
+
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
@@ -129,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
         if(resultCode != RESULT_CANCELED) {
             if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
                     String timeStamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date());
-                    String msg = timeStamp+ "\n #CaptureNow";
+                    String msg = timeStamp;
                     Bitmap imageBitmap = BitmapFactory.decodeFile(currentPhotoPath);
 
                     Matrix matrix = new Matrix();
@@ -137,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
                     Bitmap rotatedBitmap = Bitmap.createBitmap(imageBitmap, 0, 0, imageBitmap.getWidth(), imageBitmap.getHeight(), matrix, true);
 
 
-                    showImage.setImageBitmap(mark(rotatedBitmap,msg));
+//                    showImage.setImageBitmap(mark(rotatedBitmap,msg));
 
                     if (checkPermissionWRITE_EXTERNAL_STORAGE(getApplication())) {
 
@@ -159,10 +253,14 @@ public class MainActivity extends AppCompatActivity {
         canvas.drawBitmap(src, 0, 0, null);
         Paint paint = new Paint();
         paint.setColor(Color.WHITE);
-        paint.setTextSize(118);
+        paint.setTextSize(88);
         paint.setAntiAlias(true);
-        paint.setUnderlineText(true);
-        canvas.drawText(watermark, 20, (w-20), paint);
+        canvas.drawBitmap(Bitmap.createScaledBitmap(bmp2, 120, 120, false), 0, 0, null);
+        canvas.drawText(resultData, 30f, h-50f, paint);
+        canvas.drawText(resultData3, 30f, h-150f, paint);
+        canvas.drawText(resultData2, 30f, h-250f, paint);
+        canvas.drawText(watermark, 30f, h-350, paint);
+
 
         return result;
     }
@@ -176,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
         Intent whatsappIntent = new Intent(Intent.ACTION_SEND);
         whatsappIntent.setType("text/plain");
         whatsappIntent.setPackage("com.whatsapp");
-        whatsappIntent.putExtra(Intent.EXTRA_TEXT, "This Photo is taken @ "+ timeStamp + "From Capture Now");
+        whatsappIntent.putExtra(Intent.EXTRA_TEXT, "Standard Clicks "+ timeStamp);
         whatsappIntent.putExtra(Intent.EXTRA_STREAM, imgUri);
         whatsappIntent.setType("image/jpeg");
         whatsappIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -271,12 +369,7 @@ public class MainActivity extends AppCompatActivity {
                                            String[] permissions, int[] grantResults) {
         switch (requestCode) {
             case MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE:
-                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    // do your stuff
-                } else {
-                    Toast.makeText(getApplicationContext(), "GET_ACCOUNTS Denied",
-                            Toast.LENGTH_SHORT).show();
-                }
+
                 break;
             default:
                 super.onRequestPermissionsResult(requestCode, permissions,

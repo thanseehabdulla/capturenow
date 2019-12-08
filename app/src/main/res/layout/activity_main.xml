@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Capture Image Live with watermark and date"
+        android:text="STANDARD CLICK"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHorizontal_bias="0.047"
         app:layout_constraintLeft_toLeftOf="parent"
@@ -26,13 +26,25 @@
         android:layout_marginRight="144dp"
         android:layout_marginBottom="16dp"
         android:background="@drawable/button_style"
-        android:text="Capture Now"
+        android:text="CLICK AND SHARE"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
     <ImageView
         android:id="@+id/imageView"
-        android:src="@drawable/applogo"
+        android:src="@drawable/shc"
+        android:layout_width="356dp"
+        android:layout_height="554dp"
+        android:layout_marginEnd="36dp"
+        android:layout_marginRight="36dp"
+        android:layout_marginBottom="116dp"
+        app:layout_constraintBottom_toBottomOf="@+id/capture"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:srcCompat="@tools:sample/avatars" />
+    <ImageView
+        android:id="@+id/imageView2"
+        android:visibility="gone"
+        android:src="@drawable/shc2"
         android:layout_width="356dp"
         android:layout_height="554dp"
         android:layout_marginEnd="36dp"
