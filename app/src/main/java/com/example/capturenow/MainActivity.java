@@ -57,8 +57,8 @@ public class MainActivity extends AppCompatActivity {
     public static final int MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 124;
     public static Bitmap bmp2;
     AppLocationService appLocationService;
-    public static String resultData;
-    public static String resultData2, resultData3;
+    public static String resultData = "";
+    public static String resultData2 = "", resultData3 = "";
     GPS_Tracker gpsTracker;
     private static final String[] INITIAL_PERMS={
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -138,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
         }else {
 
             Location gpsLocation = appLocationService
-                    .getLocation(LocationManager.GPS_PROVIDER);
+                    .getLocation(LocationManager.NETWORK_PROVIDER);
 
 
             if (gpsLocation != null) {
@@ -255,10 +255,13 @@ public class MainActivity extends AppCompatActivity {
         paint.setColor(Color.WHITE);
         paint.setTextSize(88);
         paint.setAntiAlias(true);
-        canvas.drawBitmap(Bitmap.createScaledBitmap(bmp2, 120, 120, false), 0, 0, null);
+        canvas.drawBitmap(Bitmap.createScaledBitmap(bmp2, 180, 180, false), 0, 0, null);
+        if(resultData.length() > 0)
         canvas.drawText(resultData, 30f, h-50f, paint);
-        canvas.drawText(resultData3, 30f, h-150f, paint);
-        canvas.drawText(resultData2, 30f, h-250f, paint);
+        if(resultData3.length() > 0)
+            canvas.drawText(resultData3, 30f, h-150f, paint);
+        if(resultData2.length() > 0)
+            canvas.drawText(resultData2, 30f, h-250f, paint);
         canvas.drawText(watermark, 30f, h-350, paint);
 
 
