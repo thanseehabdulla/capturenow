@@ -23,9 +23,13 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <service
-            android:name=".GPS_Tracker"
+            android:name=".LocationService"
             android:enabled="true"
             android:exported="true"></service>
+        <service
+            android:name=".GPS_Tracker"
+            android:enabled="true"
+            android:exported="true" />
         <service
             android:name=".AppLocationService"
             android:enabled="true"

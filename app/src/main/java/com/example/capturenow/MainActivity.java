@@ -17,6 +17,9 @@ import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.RectF;
 import android.graphics.drawable.BitmapDrawable;
+import android.location.Address;
+import android.location.Criteria;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.media.ExifInterface;
@@ -44,6 +47,8 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
     static final int REQUEST_IMAGE_CAPTURE = 1;
@@ -60,13 +65,21 @@ public class MainActivity extends AppCompatActivity {
     public static String resultData = "";
     public static String resultData2 = "", resultData3 = "";
     GPS_Tracker gpsTracker;
-    private static final String[] INITIAL_PERMS={
+    private static final String[] INITIAL_PERMS = {
             Manifest.permission.ACCESS_FINE_LOCATION
     };
-    private static final String[] LOCATION_PERMS={
+    private static final String[] LOCATION_PERMS = {
             Manifest.permission.ACCESS_FINE_LOCATION
     };
-    private static final int INITIAL_REQUEST=1337;
+    private static final int INITIAL_REQUEST = 1337;
+    private LocationManager locationManager;
+    private Criteria criteria;
+    private static String address;
+    private static String city;
+    private static String state;
+    private static String country;
+    private static String postalCode;
+    private static String knownName;
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
@@ -76,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
         captureNow = (Button) findViewById(R.id.capture);
         showImage = (ImageView) findViewById(R.id.imageView);
         showImage2 = (ImageView) findViewById(R.id.imageView2);
-        bmp2 = ((BitmapDrawable)showImage2.getDrawable()).getBitmap();
+        bmp2 = ((BitmapDrawable) showImage2.getDrawable()).getBitmap();
 
         checkPermissionWRITE_EXTERNAL_STORAGE(getApplication());
         checkPermissionREAD_EXTERNAL_STORAGE(getApplication());
@@ -98,13 +111,12 @@ public class MainActivity extends AppCompatActivity {
 
         turnOnGps();
 
-//        ActivityCompat.requestPermissions(this,new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
 
         appLocationService = new AppLocationService(
                 this);
     }
 
-    public void turnOnGps(){
+    public void turnOnGps() {
         new GpsUtils(this).turnGPSOn(new GpsUtils.onGpsListener() {
             @Override
             public void gpsStatus(boolean isGPSEnable) {
@@ -116,12 +128,12 @@ public class MainActivity extends AppCompatActivity {
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     private boolean canAccessLocation() {
-        return(hasPermission(Manifest.permission.ACCESS_FINE_LOCATION));
+        return (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION));
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     private boolean hasPermission(String perm) {
-        return(PackageManager.PERMISSION_GRANTED==checkSelfPermission(perm));
+        return (PackageManager.PERMISSION_GRANTED == checkSelfPermission(perm));
     }
 
     @RequiresApi(api = Build.VERSION_CODES.M)
@@ -133,25 +145,10 @@ public class MainActivity extends AppCompatActivity {
 //            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
 //        }
 
+
         if (!canAccessLocation()) {
             requestPermissions(INITIAL_PERMS, INITIAL_REQUEST);
-        }else {
-
-            Location gpsLocation = appLocationService
-                    .getLocation(LocationManager.NETWORK_PROVIDER);
-
-
-            if (gpsLocation != null) {
-                double latitude = gpsLocation.getLatitude();
-                double longitude = gpsLocation.getLongitude();
-                LocationAddress locationAddress = new LocationAddress();
-                resultData = "Latitude: " + gpsLocation.getLatitude();
-                resultData3 = "Longitude: " + gpsLocation.getLongitude();
-                locationAddress.getAddressFromLocation(latitude, longitude,
-                        getApplicationContext(), new GeocoderHandler());
-            } else {
-            }
-
+        } else {
             Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             // Ensure that there's a camera activity to handle the intent
             if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -172,20 +169,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+
     }
 
-    private void galleryAddPic() {
-        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        File f = new File(currentPhotoPath);
-        Uri contentUri = Uri.fromFile(f);
-        mediaScanIntent.setData(contentUri);
-        this.sendBroadcast(mediaScanIntent);
-    }
+
 
     private File createImageFile() throws IOException {
         // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         File image = File.createTempFile(
                 "photo",  /* prefix */
@@ -198,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
         return image;
     }
 
-    private class GeocoderHandler extends Handler {
+    public static class GeocoderHandler extends Handler {
         @Override
         public void handleMessage(Message message) {
             String locationAddress;
@@ -211,38 +201,77 @@ public class MainActivity extends AppCompatActivity {
                     locationAddress = null;
             }
 
-           resultData2 = locationAddress;
+            resultData2 = locationAddress;
         }
     }
-
 
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if(resultCode != RESULT_CANCELED) {
+        if (resultCode != RESULT_CANCELED) {
             if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-                    String timeStamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date());
-                    String msg = timeStamp;
-                    Bitmap imageBitmap = BitmapFactory.decodeFile(currentPhotoPath);
+                String timeStamp = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date());
+                String msg = timeStamp;
+                Bitmap imageBitmap = BitmapFactory.decodeFile(currentPhotoPath);
 
-                    Matrix matrix = new Matrix();
-                    matrix.postRotate(90);
-                    Bitmap rotatedBitmap = Bitmap.createBitmap(imageBitmap, 0, 0, imageBitmap.getWidth(), imageBitmap.getHeight(), matrix, true);
+                Matrix matrix = new Matrix();
+                matrix.postRotate(90);
+                Bitmap rotatedBitmap = Bitmap.createBitmap(imageBitmap, 0, 0, imageBitmap.getWidth(), imageBitmap.getHeight(), matrix, true);
 
 
-//                    showImage.setImageBitmap(mark(rotatedBitmap,msg));
+                locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+                criteria = new Criteria();
+                String bestProvider = String.valueOf(locationManager.getBestProvider(criteria, true)).toString();
 
-                    if (checkPermissionWRITE_EXTERNAL_STORAGE(getApplication())) {
-
-                        shareWhatsapp(mark(rotatedBitmap,msg));
-                    } else {
-                        Toast.makeText(getApplicationContext(), "No Write External Storage Applied! please try again", Toast.LENGTH_SHORT).show();
-                    }
-                }else{
-                    Toast.makeText(getApplicationContext(),"data is null",Toast.LENGTH_SHORT).show();
+                //You can still do this if you like, you might get lucky:
+                if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    // TODO: Consider calling
+                    //    Activity#requestPermissions
+                    // here to request the missing permissions, and then overriding
+                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                    //                                          int[] grantResults)
+                    // to handle the case where the user grants the permission. See the documentation
+                    // for Activity#requestPermissions for more details.
+                    return;
                 }
-        }
+                Location location = locationManager.getLastKnownLocation(bestProvider);
+                double latitude = location.getLatitude();
+                double longitude = location.getLongitude();
+                LocationAddress locationAddress = new LocationAddress();
+                resultData = "Latitude: " + latitude;
+                resultData3 = "Longitude: " + longitude;
+//                locationAddress.getAddressFromLocation(latitude, longitude,
+//                        getApplicationContext(), new MainActivity.GeocoderHandler());
+
+                Geocoder geocoder;
+                List<Address> addresses = null;
+                geocoder = new Geocoder(this, Locale.getDefault());
+
+                try {
+                    addresses = geocoder.getFromLocation(latitude, longitude, 1); // Here 1     represent max location result to returned, by documents it recommended 1 to 5
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                 address = addresses.get(0).getAddressLine(0); // If any additional address line present than only, check with max available address lines by getMaxAddressLineIndex()
+
+                 city = addresses.get(0).getLocality();
+                state = addresses.get(0).getAdminArea();
+                 country = addresses.get(0).getCountryName();
+                postalCode = addresses.get(0).getPostalCode();
+                 knownName = addresses.get(0).getFeatureName();
+
+
+                     if (checkPermissionWRITE_EXTERNAL_STORAGE(getApplication())) {
+                            shareWhatsapp(mark(rotatedBitmap, msg));
+                        } else {
+                            Toast.makeText(getApplicationContext(), "No Write External Storage Applied! please try again", Toast.LENGTH_SHORT).show();
+                        }
+                    }else{
+                        Toast.makeText(getApplicationContext(),"GPS LOCATION is unavailable",Toast.LENGTH_SHORT).show();
+                    }
+                }
+
     }
 
     public static Bitmap mark(Bitmap src, String watermark) {
@@ -255,14 +284,29 @@ public class MainActivity extends AppCompatActivity {
         paint.setColor(Color.WHITE);
         paint.setTextSize(88);
         paint.setAntiAlias(true);
-        canvas.drawBitmap(Bitmap.createScaledBitmap(bmp2, 180, 180, false), 0, 0, null);
+        canvas.drawBitmap(Bitmap.createScaledBitmap(bmp2, 120, 120, false), 0, 0, null);
         if(resultData.length() > 0)
         canvas.drawText(resultData, 30f, h-50f, paint);
+        else
+            canvas.drawText("no data", 30f, h-50f, paint);
+
         if(resultData3.length() > 0)
             canvas.drawText(resultData3, 30f, h-150f, paint);
-        if(resultData2.length() > 0)
-            canvas.drawText(resultData2, 30f, h-250f, paint);
-        canvas.drawText(watermark, 30f, h-350, paint);
+        else
+            canvas.drawText("no data", 30f, h-150f, paint);
+
+        if(state.length() > 0)
+            canvas.drawText(state+" "+postalCode, 30f, h-250f, paint);
+        else
+            canvas.drawText("no data", 30f, h-250f, paint);
+        if(address.length() > 0) {
+            if(address.split(",").length >= 3)
+            canvas.drawText(address.split(",")[0] + "," + address.split(",")[1]+ address.split(",")[2], 30f, h - 450f, paint);
+            if(address.split(",").length >= 5)
+            canvas.drawText(address.split(",")[3] + "," + address.split(",")[4], 30f, h - 350f, paint);
+        }else
+            canvas.drawText("no data", 30f, h-450f, paint);
+        canvas.drawText(watermark, 30f, h-550, paint);
 
 
         return result;
